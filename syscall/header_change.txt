@@ -1,0 +1,1 @@
+asmlinkage long sys_frqme(struct frqme_stats __user *stats);
