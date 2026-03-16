@@ -1,0 +1,40 @@
+From a7145b75c50c8a875c1b6253efd71f90ac0239b4 Mon Sep 17 00:00:00 2001
+From: frqme <navecohen720@gmail.com>
+Date: Mon, 16 Mar 2026 10:58:43 +0200
+Subject: [PATCH] staging: greybus: uart: clear unsupported termios bits
+
+The set_termios callback should clear any termios bits that the
+
+hardware cannot support, so userspace is not misled into thinking
+
+a setting took effect when it did not. Use tty_termios_copy_hw()
+
+to restore hardware-related bits from the previous termios when
+
+they cannot be applied.
+
+Fixes a long-standing FIXME comment in gb_tty_set_termios().
+
+Signed-off-by: frqme <navecohen720@gmail.com>
+---
+ drivers/staging/greybus/uart.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/staging/greybus/uart.c b/drivers/staging/greybus/uart.c
+index 7d060b4cd..a1cdf6d99 100644
+--- a/drivers/staging/greybus/uart.c
++++ b/drivers/staging/greybus/uart.c
+@@ -495,7 +495,9 @@ static void gb_tty_set_termios(struct tty_struct *tty,
+ 
+ 	newline.data_bits = tty_get_char_size(termios->c_cflag);
+ 
+-	/* FIXME: needs to clear unsupported bits in the termios */
++	/* Don't claim to support bits we can't actually set */
++	if (termios_old)
++		tty_termios_copy_hw(termios, termios_old);
+ 	gb_tty->clocal = ((termios->c_cflag & CLOCAL) != 0);
+ 
+ 	if (C_BAUD(tty) == B0) {
+-- 
+2.53.0
+
