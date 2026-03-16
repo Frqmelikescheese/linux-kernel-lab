@@ -1,39 +1,61 @@
-# Linux 7.0 Kernel Research & Rootkit PoC
-**A collection of Ring-0 system modifications and kernel-space utilities.**
+# Linux Kernel Research Lab
 
-## Overview
-This project is a deep-dive into the Linux 7.0-rc3 kernel architecture. It demonstrates the ability to modify the kernel at the source level and inject logic via Out-of-Tree (OOT) Kernel Modules using Kprobes and Notifier Blocks.
+**Ring-0 systems research, kernel module development, and upstream contributions.**
 
-### 🛠 Tech Stack
+## Tech Stack
+
 - **OS:** Arch Linux (Host) / Custom BusyBox Initramfs (Guest)
-- **Kernel:** Linux 7.0.0-frqme (Custom Build)
+- **Kernel:** Linux 7.0.0-rc4 (Custom Build)
 - **Language:** C / ASM
 - **Virtualization:** QEMU / KVM
 
 ---
 
-## 🚀 Accomplishments
+## Upstream Contributions
 
-### 1. Custom Syscall Architecture (Privilege Escalation)
-- **Implementation:** Added a custom system call (`sys_frqme`) to the kernel's syscall table (`syscall_64.tbl`).
-- **Functionality:** Implemented a credential-cloning backdoor. By passing a "magic number" to the syscall, the kernel prepares a clone of the current task's credentials and manually overwrites the UID/GID to `0`.
-- **Security Bypass:** Successfully bypassed modern kernel security tripwires that prevent the direct creation of root credentials.
+### [PATCH] staging: greybus: uart: clear unsupported termios bits
 
-### 2. The "Immortal" Shield (Kprobe Signal Hooking)
-- **Logic:** Hooked `__x64_sys_kill` and `__x64_sys_tgkill` using Kprobes.
-- **Result:** Intercepted CPU registers (`pt_regs`) in mid-flight to detect if a specific PID was being targeted for termination.
-- **Sabotage:** Automatically modifies the signal argument from `SIGKILL (9)` to `0`, rendering the process unkillable even by a root user with `kill -9`.
+Sent to `linux-kernel@vger.kernel.org` on March 16, 2026.
 
-### 3. Ghost Protocol (VFS Hiding)
-- **Logic:** Used a **Kretprobe** on `sys_getdents64` to manipulate the Virtual File System (VFS).
-- **Implementation:** Intercepted the memory buffer returned by the kernel when listing directories (like `/proc`).
-- **Memory Surgery:** Implemented a memory-stitching algorithm using `memmove` to delete specific PID entries from the directory buffer, making processes completely invisible to `ps`, `top`, and `ls`.
+The `gb_tty_set_termios()` function had a long-standing `FIXME` comment
+noting that unsupported termios bits were never cleared. This misleads
+userspace into thinking settings took effect when they didn't.
 
-### 4. Hardware Input Surveillance (Keyboard Notifier)
-- **Logic:** Registered a `notifier_block` within the kernel's keyboard notification chain.
-- **Implementation:** Intercepted hardware scan codes directly from the input driver before they reached the user-space TTY, logging keystrokes to the kernel ring buffer.
+**Fix:** Added a call to `tty_termios_copy_hw()` to restore hardware-related
+bits from the previous termios when the hardware cannot apply them — matching
+the pattern used by other serial drivers in the kernel.
+
+**Maintainers:** Greg Kroah-Hartman, Johan Hovold, David Lin  
+**Mailing lists:** greybus-dev, linux-staging, linux-kernel  
+**Patch:** [`upstream-patches/`](upstream-patches/)
 
 ---
 
-## 🧪 Educational Disclaimer
-This project was developed for educational purposes to understand Operating System security, CPU register states, and kernel-space memory management. All testing was performed in isolated QEMU environments.
+## Kernel Module Research
+
+### 1. Custom Syscall (Privilege Escalation)
+Added `sys_frqme` to the kernel syscall table. Implements a credential-cloning
+backdoor that bypasses modern kernel security tripwires by manually overwriting
+UID/GID to 0 via a magic number trigger.
+
+### 2. Immortal Shield (Kprobe Signal Hooking)
+Hooked `__x64_sys_kill` and `__x64_sys_tgkill` via Kprobes. Intercepts
+`pt_regs` mid-flight to rewrite `SIGKILL (9)` to `0` for a target PID,
+making the process unkillable even by root.
+
+### 3. Ghost Protocol (VFS Hiding)
+Kretprobe on `sys_getdents64` intercepts the directory listing buffer.
+Uses a `memmove`-based memory stitching algorithm to surgically remove
+PID entries, making processes invisible to `ps`, `top`, and `ls`.
+
+### 4. Hardware Input Surveillance (Keyboard Notifier)
+Registered a `notifier_block` in the kernel keyboard notification chain.
+Intercepts raw hardware scan codes before they reach userspace TTY,
+logging keystrokes directly to the kernel ring buffer.
+
+---
+
+## Educational Disclaimer
+
+All research conducted in isolated QEMU environments. Never run on
+bare metal outside of a controlled lab. For OS security education only.
